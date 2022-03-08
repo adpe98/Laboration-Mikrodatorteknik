@@ -71,9 +71,7 @@ reset:
 main_loop:
 	
 	rcall read_sensor
-	;rcall number_to_display
-;	ldi r16, 0x07 
-;	rcall set_cursor ; flyttar cursorn till den pos 7 på första raden
+	rcall calculate
 	rcall update_LCD 
 	rcall write
 	
@@ -140,18 +138,27 @@ read_sensor:
 	sbi PORTB, 6
 	ret
 
-number_to_display:
-	
-	ldi r25, 0x00
+calculate:
+	clr r18
+	clr r25
+minus_10:
 	inc r25 
 	subi r24, 10 
-	cpi r24, 0x00000001
-	rjmp number_to_display
-	inc r25
+	cpi r24, 0b00001010
+	brlo minus_1
+	rjmp minus_10
+
+minus_1:
+	inc r18
 	dec r24
-	cpi r24, 0x00000000
+	cpi r24, 0x00
+	breq print_display
+	rjmp minus_1
+	
+print_display:	
 	subi r24, -48
 	subi r25, -48
+
 	ret
 
 ;set_cursor:
