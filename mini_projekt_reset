@@ -94,6 +94,7 @@ update_LCD:
 	ldi	XH, high(degrees_res)
 	rcall write
 
+	/*
 	ldi ZL, low(lim*2)
 	ldi	ZH, high(lim*2)
 	ldi XL, low(lim_res)
@@ -118,20 +119,22 @@ update_LCD:
 	ldi	XH, high(larm_variabel_res)
 	rcall write
 	ret
+	*/
 
 read_sensor:
 	
-	cbi PORTB, 2 
-	;rcall SPI_SlaveReceive ;samlar in datat som ligger på SPI:n och lägger över på temperatur registret
+	sbi PORTB, 6
+	cbi PORTB, 6
+	;rcall spi_txrx ;samlar in datat som ligger på SPI:n och lägger över på temperatur registret
 	mov r24, temperature_reg
 	lsl r24
-	;rcall SPI_SlaveReceive
+	;rcall spi_txrx
 	mov r18, temperature_reg
 	lsl r18
 	ROL r18
 	andi r18, 0b00000001
 	OR r24, r18 ;r16 och r18 adderas ihop och värdet sparas på r16
-	sbi PORTB, 2
+	sbi PORTB, 6
 	ret
 
 ;number_to_display:
@@ -157,10 +160,12 @@ read_sensor:
 write:
 	sbi PORTB, 1  ;RS
 	cbi PORTB, 2  ;SS
+	rcall delay_mega
 	lpm led_reg, Z+ 
 	st x+, led_reg
 	cpi led_reg, 0x00
 	breq bye
+	rcall delay_mega
 	rcall spi_txrx
 	sbi PORTB, 2 
 	rjmp write
@@ -189,6 +194,20 @@ wait_txrx:
 	in led_reg, SPDR  ; transfer complete, save received data
 	ret 
 
+delay_mega:
+	ldi loop_reg_2, 255
+loop_3:
+	ldi loop_reg_1, 255
+	dec loop_reg_2
+	tst loop_reg_2
+	brne loop_2 
+	ret
+loop_4:
+	dec loop_reg_1
+	tst loop_reg_1
+	breq loop_3
+	rjmp loop_4
+
 delay_30ms:
 	ldi loop_reg_2, 25
 loop:
@@ -207,21 +226,22 @@ loop_2:
 
 ;Flashminnet:
 .cseg
-temp: .db "Temp", EOS
-degrees: .db "   XX°C     ", EOS
-lim: .db "Lim", EOS
-degree_lim: .db " XX°C to XX°C", EOS
-larma: .db "Larm", EOS
-larm_variabel: .db " X          ", EOS ;W, C, P motsvarar Warm, Cold, Perfect
+temp: .db"Temp", EOS
+degrees: .db"   XX°C     ", EOS
+;lim: .db "Lim", EOS
+;degree_lim: .db " XX°C to XX°C", EOS
+;larma: .db "Larm", EOS
+;larm_variabel: .db " X          ", EOS ;W, C, P motsvarar Warm, Cold, Perfect
 
 ;SRAM minnet: 
 .dseg 
 .org SRAM_START
 
 ;Första raden:
-temp_res: .byte 3
-degrees_res: .byte 13
+temp_res: .byte 4
+degrees_res: .byte 12
 
+/*
 ;Andra raden:
 lim_res: .byte 3
 degree_lim_res: .byte 13
@@ -229,8 +249,4 @@ degree_lim_res: .byte 13
 ;Tredje raden: 
 larma_res: .byte 4
 larm_variabel_res: .byte 12
-
-
-
-
-
+*/
