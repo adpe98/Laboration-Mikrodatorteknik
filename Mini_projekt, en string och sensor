@@ -67,13 +67,14 @@ reset:
 	sbi PORTB, 2 
 	sbi PORTB, 1
 
+	rcall update_LCD 
+
 main_loop:
 	
-	;rcall read_sensor
-	;rcall update_LCD 
 	rcall move_cursor
-	;rcall write
-	
+	rcall read_sensor
+	rcall print_temp
+
 	rjmp main_loop
 
 update_LCD:
@@ -90,7 +91,7 @@ move_cursor:
 	clr r16
     cbi PORTB, 1 
 	cbi PORTB, 2 
-	ldi r16, 0b10001000
+	ldi r16, 0b10000101
 	rcall spi_txrx
 	rcall delay_30ms
 	sbi PORTB, 2
@@ -104,7 +105,6 @@ read_sensor:
 	clr r16
 	cbi PORTB, 6
 	rcall spi_txrx ;samlar in datat som ligger på SPI:n och lägger över på temperatur registret
-	rcall delay_mega
 	mov r24, led_reg
 	lsl r24
 	rcall spi_txrx
@@ -130,10 +130,10 @@ minus_1:
 	inc r18
 	dec r24
 	cpi r24, 0x00
-	breq print_display
+	breq bye
 	rjmp minus_1
 	
-print_display:	
+print_temp:	
 	subi r24, -48
 	subi r25, -48
 
@@ -152,12 +152,12 @@ print_display:
 write:
 	clr led_reg
 	sbi PORTB, 1  ;RS
-	rcall delay_mega
+;	rcall delay_mega
 	lpm r16, Z+ 
 	tst r16
 	breq bye
 	cbi PORTB, 2  ;SS
-	rcall delay_mega
+;	rcall delay_mega
 	rcall spi_txrx
 	cbi PORTB, 1 
 	sbi PORTB, 2 
@@ -219,4 +219,4 @@ loop_2:
 
 ;Flashminnet:
 .cseg
-temperature_string: .db"Temp XX°C       Lim XX°C-XX°C   Larm X          ",EOS ;W, C, P motsvarar Warm, Cold, Perfect
+temperature_string: .db"Temp            Lim XX°C-XX°C   Larm X          ",EOS ;W, C, P motsvarar Warm, Cold, Perfect
