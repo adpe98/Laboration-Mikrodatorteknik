@@ -64,14 +64,14 @@ reset:
 	ldi led_reg, 0x06
 	rcall spi_txrx 
 	rcall delay_30ms
-	;sbi PORTB, 2 
-	;sbi PORTB, 1
+	sbi PORTB, 2 
+	sbi PORTB, 1
 
 main_loop:
 	
 	;rcall read_sensor
-	rcall update_LCD 
-	;rcall move_cursor
+	;rcall update_LCD 
+	rcall move_cursor
 	;rcall write
 	
 	rjmp main_loop
@@ -170,7 +170,7 @@ bye:
 SPI_master_init:
 	clr r16 
 	;SS, MOSI, SCK pins sätts till outputs
-	ldi r16, (1<<2) | (1<<3) | (1<<5)
+	ldi r16, (1<<2) | (1<<3) | (1<<5) | (1<<1) 
 	out DDRB, led_reg
 	;starta SPE, sätt som master, sätt clock rate till fck/16
 	ldi r16, (1<<SPE) | (1<<MSTR) | (1<<SPR0)
