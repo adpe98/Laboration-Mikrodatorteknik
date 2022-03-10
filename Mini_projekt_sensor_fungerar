@@ -104,11 +104,11 @@ read_sensor:
 	;sbi PORTB, 6
 	clr r16
 	cbi PORTB, 0
-	;rcall delay_mega
+	rcall delay_30ms
 	rcall spi_txrx ;samlar in datat som ligger på SPI:n och lägger över på temperatur registret
 	mov r24, r16
 	;lsl r24
-	;rcall delay_mega
+	;rcall delay_30ms
 	rcall spi_txrx
 	mov r18, r16
 	lsl r18
