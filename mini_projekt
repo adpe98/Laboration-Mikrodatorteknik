@@ -1,10 +1,12 @@
-
 .include "m328pdef.inc"
 
 .def led_reg = r16
 .def temperature_reg = r17
 .def loop_reg_1 = r18
 .def loop_reg_2 = r19
+.def temp_reg = r20
+.def temporary = r21
+
 
 .equ EOS = 0
 
@@ -14,7 +16,7 @@
 
 reset:
 	
-	rcall LCD_master_init
+	rcall SPI_master_init
 
 	//Function Set
 	cbi PORTB, 1
@@ -61,14 +63,17 @@ reset:
 	//Entry Mode Set
 	ldi led_reg, 0x06
 	rcall spi_txrx 
-	rcall delay_30ms
 	sbi PORTB, 2 
 	sbi PORTB, 1
 
+	rcall update_LCD 
+
 main_loop:
 	
-	rcall update_LCD 
-	;rcall temperatur_sensor
+	rcall move_cursor
+	rcall read_sensor
+	rcall delay_mega
+	rcall print_temp
 
 	rjmp main_loop
 
@@ -76,51 +81,88 @@ update_LCD:
 	;Börjar med att reservera utrymme i SRAM för bytsen med hjälp av Z pekaren 
 	;Ladda 
 	
-	ldi ZL, low(Temp*2)
-	ldi ZH, high(Temp*2)
-	ldi XL, low(Temp_res)
-	ldi	XH, high(Temp_res)
+	ldi ZL, low(temperature_string*2)
+	ldi ZH, high(temperature_string*2)
+	rcall delay_mega
 	rcall write
 	
-	ldi ZL, low(degrees*2)
-	ldi	ZH, high(degrees*2)
-	ldi XL, low(degrees_res)
-	ldi	XH, high(degrees_res)
-	rcall write
+	ret
 
-	ldi ZL, low(lim*2)
-	ldi	ZH, high(lim*2)
-	ldi XL, low(lim_res)
-	ldi	XH, high(lim_res)
-	rcall write
+move_cursor:
+	clr r16
+    cbi PORTB, 1 
+	cbi PORTB, 2 
+	ldi r16, 0b10000101
+	rcall spi_txrx
+	rcall delay_30ms
+	sbi PORTB, 2
+	sbi PORTB, 1 
+	ret
 
-	ldi ZL, low(degree_lim*2)
-	ldi	ZH, high(degree_lim*2)
-	ldi XL, low(degree_lim_res)
-	ldi	XH, high(degree_lim_res)
-	rcall write
+read_sensor:
+	
+	;sbi PORTB, 6
+	clr r16
+	cbi PORTB, 0
+	;rcall delay_mega
+	rcall spi_txrx ;samlar in datat som ligger på SPI:n och lägger över på temperatur registret
+	mov r24, r16
+	;lsl r24
+	;rcall delay_mega
+	rcall spi_txrx
+	mov r18, r16
+	lsl r18
+	ROL r24
+	;andi r18, 0b00000001
+	;OR r24, r18 ;r16 och r18 adderas ihop och värdet sparas på r16
+	sbi PORTB, 0
+	rjmp calculate
 
-	ldi ZL, low(larma*2)
-	ldi	ZH, high(larma*2)
-	ldi XL, low(larma_res)
-	ldi	XH, high(larma_res)
-	rcall write
+;grönt
+calculate:
+	clr r18
+	clr r25
+minus_10:
+	cpi r24, 0b00001010
+	brlo minus_1
+	inc r25 
+	subi r24, 10 
+	rjmp minus_10
 
-	ldi ZL, low(larm_variabel*2)
-	ldi	ZH, high(larm_variabel*2)
-	ldi XL, low(larm_variabel_res)
-	ldi	XH, high(larm_variabel_res)
-	rcall write
+minus_1:
+	cpi r24, 0x00
+	breq bye
+	inc r18
+	dec r24
+	rjmp minus_1
+	
+print_temp:	
+	subi r18, -48
+	subi r25, -48
+
+	mov r16, r25
+	cbi PORTB, 2
+	rcall spi_txrx
+	sbi PORTB, 2
+
+	mov r16, r18
+	cbi PORTB, 2 
+	rcall spi_txrx
+	sbi PORTB, 2
+
 	ret
 
 write:
+	clr led_reg
 	sbi PORTB, 1  ;RS
-	cbi PORTB, 2  ;SS
-	lpm led_reg, Z+ 
-	st x+, led_reg
-	cpi led_reg, 0x00
+	;rcall delay_mega
+	lpm r16, Z+ 
+	tst r16
 	breq bye
+	cbi PORTB, 2  ;SS
+	;rcall delay_mega
 	rcall spi_txrx
+	cbi PORTB, 1 
 	sbi PORTB, 2 
 	rjmp write
 	rjmp bye
@@ -128,86 +170,57 @@ write:
 bye:
 	ret
 
-infinite_loop:
-stuck:
-	cpi led_reg, 0x00
-	breq stuck
-	ret
-
-
-LCD_master_init:
-	clr led_reg 
+SPI_master_init:
+	clr r16 
 	;SS, MOSI, SCK pins sätts till outputs
-	ldi led_reg, (1<<2) | (1<<3) | (1<<5)
+	ldi r16, (1<<2) | (1<<3) | (1<<5) | (1<<1) | (1<<4)
 	out DDRB, led_reg
 	;starta SPE, sätt som master, sätt clock rate till fck/16
-	ldi led_reg, (1<<SPE) | (1<<MSTR) | (1<<SPR0)
-	out SPCR, led_reg
+	ldi r16, (1<<SPE) | (1<<MSTR) | (1<<SPR0)
+	out SPCR, r16
 	; done
 	ret
 
 spi_txrx:
-	out SPDR, led_reg ; start tx/rx cycle by writing to SPDR
+	out SPDR, r16 ; start tx/rx cycle by writing to SPDR
 wait_txrx:
-	in led_reg, SPSR  ; read status register
-	sbrs led_reg, SPIF  ; skip if bit transfer complete
+	in r16, SPSR  ; read status register
+	sbrs r16, SPIF  ; skip if bit transfer complete
 	rjmp wait_txrx
-	in led_reg, SPDR  ; transfer complete, save received data
+	in r16, SPDR  ; transfer complete, save received data
 	ret 
 
+delay_mega:
+	ldi loop_reg_2, 255
+loop_3:
+	ldi r20 , 255
+	dec r21 
+	tst r21 
+	brne loop_2 
+	ret
+loop_4:
+	dec r20 
+	tst r20 
+	breq loop_3
+	rjmp loop_4
+
 delay_30ms:
-	ldi loop_reg_2, 25
+	ldi r21 , 25
 loop:
-	ldi loop_reg_1, 255
-	dec loop_reg_2
-	tst loop_reg_2
+	ldi r20 , 255
+	dec r21 
+	tst r21 
 	brne loop_2 
 	ret
 loop_2:
-	dec loop_reg_1
-	tst loop_reg_1
+	dec r20 
+	tst r20 
 	breq loop
 	rjmp loop_2
-
-temperatur_sensor: 
 	
-
-
-
-
-
-
-
-
 
 //Minnnesdetaljer
 
 ;Flashminnet:
 .cseg
-temp: .db "Temp", EOS
-degrees: .db "   XX°C     ", EOS
-lim: .db "Lim", EOS
-degree_lim: .db " XX°C to XX°C", EOS
-larma: .db "Larm", EOS
-larm_variabel: .db " X          ", EOS ;W, C, P motsvarar Warm, Cold, Perfect
-
-;SRAM minnet: 
-.dseg 
-.org SRAM_START
-
-;Första raden:
-temp_res: .byte 3
-degrees_res: .byte 13
-
-;Andra raden:
-lim_res: .byte 3
-degree_lim_res: .byte 13
-
-;Tredje raden: 
-larma_res: .byte 4
-larm_variabel_res: .byte 12
-
-
-
-
-
+temperature_string: .db"Temp            Lim    -        Larm            ",EOS ;W, C, P motsvarar Warm, Cold, Perfect
