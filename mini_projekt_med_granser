@@ -161,23 +161,38 @@ move_cursor_70:
 	ret
 
 print_limit_high:
-	cpi r22, 0x00
-	brne skippa_ladda_limit_high 
+	cpi r22, 0b00001111
+	brge jump_3 
 	ldi r22, 0b01000110
+jump_3:
+	cpi r22, 0b01000110
+	brlo jump_4
+	ldi r22, 0b01000110
+jump_4:
+	sbic PINC, 3
+	rjmp kolla_pin2
+	dec r22
+kolla_pin2:
+	sbic PINC, 2
+	rjmp skippa_ladda_limit_high
+	inc r22
+
 skippa_ladda_limit_high:
+	
+	mov r23, r22
 	clr r18
 	clr r25
 minus_10_3:
-	cpi r22, 0b00001010
+	cpi r23, 0b00001010
 	brlo minus_1_3
 	inc r25 
-	subi r22, 10 
+	subi r23, 10 
 	rjmp minus_10_3
 minus_1_3:
-	cpi r22, 0x00
+	cpi r23, 0x00
 	breq print_2
 	inc r18
-	dec r22
+	dec r23
 	rjmp minus_1_3
 print_2:
 	ret
